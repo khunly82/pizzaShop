@@ -1,0 +1,91 @@
+﻿@page "/"
+@inject PizzaShopContext _dbContext
+@inject ISnackbar _snackbar
+@inject ILogger<Home> _logger
+
+<PageTitle>PizzaShop</PageTitle>
+
+<header>
+    <MudText Typo="Typo.h3">Pizza Shop</MudText>
+    <MudBadge Content="_cart.Sum(i => i.Value)" Visible="_cart.Count > 0">
+        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart"></MudIcon>
+    </MudBadge>
+</header>
+
+<MudTable Items="@_produits" Hover="true" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+        <MudTh>Nom</MudTh>
+        <MudTh>Prix</MudTh>
+        <MudTh>Stock</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Nom">@context.Nom</MudTd>
+        <MudTd DataLabel="Prix">@context.Prix</MudTd>
+        <MudTd DataLabel="Stock">@context.Stock</MudTd>
+        <MudTd>
+            <MudButton Variant="Variant.Filled" Disabled="_isLoading" Class="ma-2" Size="Size.Small" IconSize="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="() => AddPizza(context.Id)"></MudButton>
+            <MudButton Variant="Variant.Filled" Disabled="_isLoading" Class="ma-2" Size="Size.Small" IconSize="Size.Small" StartIcon="@Icons.Material.Filled.Remove" OnClick="() => RemovePizza(context.Id)"></MudButton>
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private List<Produit> _produits = [];
+    private Dictionary<int, int> _cart = new();
+
+    private bool _isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _produits = _dbContext.Products.ToList();
+        await base.OnInitializedAsync();
+    }
+
+    private async Task AddPizza(int id)
+    {
+        Produit produit = _dbContext.Products.First(p => p.Id == id);
+        if(produit.Stock <= 0)
+        {
+            _logger.LogError("Invalid Operation: Insufficient Stock for product {id}", id);
+            _snackbar.Add("Stock Insuffisant", Severity.Error);
+            return;
+        }
+        _isLoading = true;
+        produit.Stock--;
+        await _dbContext.SaveChangesAsync();
+        if(!_cart.ContainsKey(id))
+        {
+            _cart.Add(id, 0);
+        }
+        _cart[id]++;
+        _logger.LogInformation("Product {id} added to cart");
+        _snackbar.Add("Ajouté au panier", Severity.Info);
+        _produits = _dbContext.Products.ToList();
+        _isLoading = false;
+    }
+
+    private async Task RemovePizza(int id)
+    {
+        if (!_cart.ContainsKey(id))
+        {
+            _logger.LogError("Invalid Operation: Cannot remove product {id} from cart", id);
+            _snackbar.Add("Votre panier ne contient pas cet article", Severity.Error);
+            return;
+        }
+        _isLoading = true;
+        Produit produit = _dbContext.Products.First(p => p.Id == id);
+        produit.Stock++;
+        await _dbContext.SaveChangesAsync();
+        _cart[id]--;
+        if(_cart[id] <= 0)
+        {
+            _cart.Remove(id);
+        }
+        _logger.LogInformation("Product {id} removed from cart", id);
+        _snackbar.Add("Supprimé du panier", Severity.Info);
+        _produits = _dbContext.Products.ToList();
+        _isLoading = false;
+    }
+}
+
