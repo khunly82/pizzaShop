@@ -1,4 +1,6 @@
 ﻿@page "/"
+@using System.Diagnostics
+@using Microsoft.EntityFrameworkCore
 @inject PizzaShopContext _dbContext
 @inject ISnackbar _snackbar
 @inject ILogger<Home> _logger
@@ -38,16 +40,18 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _produits = _dbContext.Products.ToList();
+        _produits = await _dbContext.Products.ToListAsync();
         await base.OnInitializedAsync();
     }
 
     private async Task AddPizza(int id)
     {
-        Produit produit = _dbContext.Products.First(p => p.Id == id);
+        Produit produit = await _dbContext.Products.FirstAsync(p => p.Id == id);
         if(produit.Stock <= 0)
         {
             _logger.LogError("Invalid Operation: Insufficient Stock for product {id}", id);
+            var activity = Activity.Current;
+            activity?.SetStatus(ActivityStatusCode.Error, "Invalid Operation: Insufficient Stock for product {id}");
             _snackbar.Add("Stock Insuffisant", Severity.Error);
             return;
         }
@@ -61,7 +65,7 @@
         _cart[id]++;
         _logger.LogInformation("Product {id} added to cart");
         _snackbar.Add("Ajouté au panier", Severity.Info);
-        _produits = _dbContext.Products.ToList();
+        _produits = await _dbContext.Products.ToListAsync();
         _isLoading = false;
     }
 
@@ -70,11 +74,13 @@
         if (!_cart.ContainsKey(id))
         {
             _logger.LogError("Invalid Operation: Cannot remove product {id} from cart", id);
+            var activity = Activity.Current;
+            activity?.SetStatus(ActivityStatusCode.Error, "Invalid Operation: Cannot remove product {id} from cart");
             _snackbar.Add("Votre panier ne contient pas cet article", Severity.Error);
             return;
         }
         _isLoading = true;
-        Produit produit = _dbContext.Products.First(p => p.Id == id);
+        Produit produit = await _dbContext.Products.FirstAsync(p => p.Id == id);
         produit.Stock++;
         await _dbContext.SaveChangesAsync();
         _cart[id]--;
@@ -84,7 +90,7 @@
         }
         _logger.LogInformation("Product {id} removed from cart", id);
         _snackbar.Add("Supprimé du panier", Severity.Info);
-        _produits = _dbContext.Products.ToList();
+        _produits = await _dbContext.Products.ToListAsync();
         _isLoading = false;
     }
 }

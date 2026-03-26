@@ -30,9 +30,23 @@ namespace PizzaShop.Configurations
                 // SECTION TEMPO (Traces)
                 // Définit COMMENT on suit une requête de A à Z (le "fil d'Ariane")
                 .WithTracing(tracing => tracing
-                    .AddAspNetCoreInstrumentation() // Crée une trace pour chaque requête entrante
+                    .AddAspNetCoreInstrumentation(options => 
+                    {
+                        options.RecordException = true; 
+                    })
+                    .AddSqlClientInstrumentation(options => 
+                    {
+                        options.EnrichWithSqlCommand = (activity, command) =>
+                        {
+                            if (command is Microsoft.Data.SqlClient.SqlCommand sqlCommand)
+                            {
+                                activity.SetTag("db.statement", sqlCommand.CommandText);
+                            }
+                        };
+                    })
                     .AddHttpClientInstrumentation() // Continue la trace si ton app appelle une autre API
-                    .AddSqlClientInstrumentation()  // Ajoute les requêtes SQL à la timeline de la trace
+                    .AddSource("Microsoft.AspNetCore.Components.Server") // Pour Blazor Server interne
+                    .AddSource("MudBlazor")
                     .AddOtlpExporter(opt => {
                         opt.Endpoint = new Uri(otlpExporter); // Envoie les traces à Tempo via gRPC
                     }));
